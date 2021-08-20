@@ -3,12 +3,20 @@ const path = require('path')
 const express = require('express')
 const bodyParser = require('body-parser')
 const mongoose = require('mongoose')
+const session = require('express-session')
+const MongoDBStore = require('connect-mongodb-session')(session)
 
 
 const errorController = require('./controllers/error')
 const User = require('./models/user')
 
+const MONGODB_URI = 'mongodb+srv://dbUser:F*6ucZhkx3YwU7b@cluster0.obba8.mongodb.net/myDatabase'
+
 const app = express()
+const store = new MongoDBStore({
+  uri: MONGODB_URI,
+  collection : 'session'
+})
 
 app.use(express.json());
 app.use(express.urlencoded({
@@ -26,9 +34,15 @@ const authRoutes = require('./routes/auth')
 // app.use(express.json())
 
 app.use(express.static(path.join(__dirname, 'public')))
+app.use(
+  session({ secret: 'my secret', resave: false, saveUninitialized: false, store: store})
+)
 
 app.use((req, res, next) => {
-  User.findById('611cb4d57174cb0870850ede')
+  if (!req.session.user) {
+    return next()
+  }
+  User.findById(req.session.user._id)
     .then(user => {
       req.user = user
       next()
@@ -43,7 +57,9 @@ app.use(authRoutes)
 app.use(errorController.get404)
 
 mongoose
-  .connect('mongodb+srv://dbUser:F*6ucZhkx3YwU7b@cluster0.obba8.mongodb.net/myDatabase?retryWrites=true&w=majority')
+  .connect(
+    MONGODB_URI
+  )
   .then(result => {
     User.findOne().then(user => {
       if (!user) {
